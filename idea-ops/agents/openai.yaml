@@ -1,0 +1,4 @@
+interface:
+  display_name: "Idea Ops"
+  short_description: "通过对话记录早期想法与目标，逐步拆解可执行步骤并展示在现有画布中"
+  default_prompt: "Use $idea-ops to record my idea and goal, break it into achievable steps, and show them on my existing editable canvas."

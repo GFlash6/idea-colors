@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Idea Ops</title>
+<style>
+  :root{
+    --ground:#f4f2ec; --surface:#fcfbf7; --ink:#1e2422; --muted:#6b736f; --rule:#dcdad2;
+    --green:#176b52; --blue:#246bce; --violet:#6d5fa8; --ochre:#9a7424; --red:#c64b35; --teal:#1c7d84;
+    --soft:#e5efe9; --radius:10px;
+    font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+  }
+  *{box-sizing:border-box}
+  html{min-width:320px}
+  body{margin:0;min-height:100vh;background:var(--ground);font-size:14px;line-height:1.55}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer}
+  ::selection{background:#bcd9cd;color:#10251e}
+  :focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .topbar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:16px;min-height:54px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--surface)}
+  .brand{margin:0;font-size:1rem;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
+  .tabs{display:flex;gap:2px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{display:flex;align-items:center;gap:5px;padding:5px 10px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:.8rem;white-space:nowrap}
+  .tabs button:hover{background:#f1efe8}
+  .tabs button.current{background:var(--soft);color:var(--green);font-weight:700}
+  .tabs b{font-weight:700;font-variant-numeric:tabular-nums;opacity:.72}
+
+  .primary{min-height:40px;border:0;border-radius:9px;padding:0 18px;background:var(--green);color:#fff;font-weight:700}
+  .primary:hover{background:#12583f}
+  .secondary{min-height:34px;border:1px solid var(--rule);border-radius:8px;padding:0 13px;background:#fff;font-weight:650;font-size:.8rem}
+  .secondary:hover{border-color:#98a49f}
+
+  .split{display:grid;grid-template-columns:minmax(225px,285px) minmax(0,1fr);align-items:start}
+  .list-pane{border-right:1px solid var(--rule);background:var(--surface)}
+  .list-head{padding:9px 15px;border-bottom:1px solid var(--rule);color:var(--muted);font-size:.73rem}
+  .list{margin:0;padding:0;list-style:none}
+  .list li{border-bottom:1px solid var(--rule)}
+  .row{display:grid;grid-template-columns:10px minmax(0,1fr);gap:10px;width:100%;padding:11px 15px;border:0;background:transparent;text-align:left}
+  .row:hover{background:#f6f5ef}
+  .row.selected{background:var(--soft);box-shadow:inset 3px 0 var(--green)}
+  .row strong{display:block;font-size:.89rem;font-weight:650;line-height:1.35}
+  .row small{display:block;margin-top:2px;overflow:hidden;color:var(--muted);font-size:.71rem;text-overflow:ellipsis;white-space:nowrap}
+  .empty{padding:34px 18px;color:var(--muted);font-size:.82rem;text-align:center}
+
+  .detail{padding:20px 22px 48px;max-width:900px}
+
+  .graph{margin-top:16px;padding:20px 0;overflow:auto;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);background:#faf9f5}
+  .graph svg{display:block;margin:0 auto}
+  .node{cursor:pointer}
+  .node text{pointer-events:none}
+  .node:focus{outline:none}
+
+  .toast{position:fixed;right:18px;bottom:18px;z-index:20;max-width:340px;padding:11px 15px;border-radius:9px;background:var(--ink);color:#fff;box-shadow:0 12px 30px rgba(24,30,27,.2);opacity:0;translate:0 8px;pointer-events:none;transition:opacity .18s ease-out,translate .18s ease-out}
+  .toast.show{opacity:1;translate:0 0}
+  .toast.error{background:var(--red)}
+
+  @media (max-width:820px){
+    .split{display:block}
+    .list-pane{border-right:0;border-bottom:1px solid var(--rule)}
+    .detail{padding:16px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important}}
+
+  :root{--ground:#faf8f4;--surface:#faf8f4;--ink:#20314a;--muted:#60718a;--green:#397c69;--soft:#eaf0ed;--rule:#e8e4dd}
+  .detail{max-width:none;padding:24px;min-width:0}
+  .topbar{position:static;min-height:64px}
+  .split{grid-template-columns:220px minmax(0,1fr)}
+  .row.selected{box-shadow:none}
+  .graph{position:relative;margin:0;padding:0;border:0;border-radius:24px;min-height:calc(100vh - 112px);background:#faf8f4;overflow:hidden}
+  .map-head{display:flex;gap:16px;align-items:center;justify-content:space-between;margin:0 16px;padding:18px 0;border-bottom:1px solid var(--rule)}
+  .map-head h2{margin:0;font-size:18px;font-weight:650;overflow-wrap:anywhere}
+  .map-head>div{min-width:0}
+  .map-head>button{flex-shrink:0}
+  .map-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+  .map-scroll{overflow:hidden;height:calc(100vh - 270px);min-height:420px;touch-action:none;cursor:grab;user-select:none}
+  .map-scroll>svg{display:block;width:100%;height:100%;margin:0}
+  .map-scroll.dragging,.map-scroll.dragging .node{cursor:grabbing}
+  .map-scroll.dragging .node-actions,.map-scroll.dragging .edge-actions{opacity:0;pointer-events:none}
+  .canvas-nav{display:flex;gap:6px;align-items:center}
+  @media(max-width:600px){.map-head{flex-wrap:wrap}.canvas-nav{flex-wrap:wrap}.map-scroll{height:60vh}.map-foot{font-size:11px}}
+  .map-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;padding:22px 16px;color:var(--muted);font-size:12px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .legend i{width:11px;height:11px;border-radius:50%}
+  .node-halo{opacity:.18;filter:blur(2px);transform-box:fill-box;transform-origin:center;pointer-events:none;transition:opacity .22s ease-out,transform .22s ease-out}
+  .node:hover .node-halo,.node:focus-within .node-halo,.node.is-selected .node-halo,.node.is-merge-selected .node-halo{opacity:.48;transform:scale(1.12)}
+  .node-dot{pointer-events:none}
+  .edge:focus,.edge:focus-visible{outline:none}
+  .edge-glow{opacity:0;filter:blur(2px);pointer-events:none;transition:opacity .2s ease-out}
+  .edge:focus-within .edge-glow{opacity:.28}
+  .node:hover text{fill:#20314a}
+  .node-actions,.edge-actions{opacity:0;pointer-events:none;transition:opacity .12s ease-out}
+  .node:hover .node-actions,.node:focus-within .node-actions,.edge:hover .edge-actions,.edge:focus-within .edge-actions{opacity:1;pointer-events:auto}
+  .graph-actions{display:flex;gap:2px;padding:2px;background:#faf8f4;border-radius:8px;width:max-content}
+  .node-actions .graph-actions{flex-direction:column}
+  .graph-actions button{display:grid;place-items:center;width:28px;height:28px;padding:5px;border:0;border-radius:5px;background:transparent;color:#60718a}
+  .graph-actions button:hover{background:#e8ecee;color:#20314a}
+  .graph-actions button[data-action="delete"]:hover,.graph-actions button[data-action="unlink"]:hover{color:#b33c42;background:#fae9e8}
+  .graph-actions button svg{width:18px;height:18px;min-width:0;pointer-events:none}
+  .edge-hit{cursor:pointer;pointer-events:stroke}
+  @media(hover:none){.node:focus-within .node-actions,.edge:focus-within .edge-actions{opacity:1;pointer-events:auto}}
+  .node-tools{position:absolute;z-index:3;max-width:calc(100% - 24px);padding:12px;background:#fff;box-shadow:0 8px 30px #0000001f;border-radius:12px;max-height:calc(100% - 88px);overflow:auto}
+  .node-tools p{margin:0 0 10px;max-width:290px;overflow-wrap:anywhere;font-size:13px}
+  .actions{display:flex;flex-wrap:wrap;gap:6px}
+  .node-tools form{display:grid;gap:10px;width:280px;max-width:100%}
+  .node-tools label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+  .node-tools input,.node-tools select,.node-tools textarea{width:100%;min-width:0;padding:9px;border:1px solid var(--rule);border-radius:6px;background:white}
+  .node-tools textarea{resize:vertical;min-height:75px}
+  .node-tools .record-time{font-size:12px;color:var(--muted);line-height:1.6}
+  .node-tools .record-content{min-height:130px;line-height:1.65}
+  .node-tools button{min-height:36px}
+  .node-tools .danger{color:#b33c42}
+  .secondary:disabled,.primary:disabled{opacity:.5;cursor:wait}
+  .start{display:flex;align-items:center;justify-content:center;min-height:420px}
+  .start button{border:0;background:transparent;color:var(--ink);display:grid;justify-items:center;gap:14px;font-size:17px}
+  .start svg{width:46px;min-width:0;height:46px}
+  @media(max-width:820px){.split{display:block}.detail{padding:8px}.list-pane{max-height:155px;overflow:auto}.topbar{flex-wrap:wrap;gap:10px;padding:12px}.tabs{width:100%;order:3}.map-head{margin:0 12px}.map-head h2{font-size:16px}.map-foot{gap:12px}.graph{min-height:600px}.node-tools{max-width:calc(100% - 16px)}}
+  [hidden]{display:none!important}
+  .home-nav{padding:28px 18px;border-right:1px solid var(--rule);min-height:calc(100vh - 64px)}
+  .home-nav p{margin:0 0 20px;color:var(--muted);font-size:12px}
+  .home-nav .tabs{display:grid;gap:6px;margin:0}
+  .home-nav .tabs button{justify-content:space-between;border-radius:6px;padding:11px 12px}
+  .list-pane{border:0;padding:26px 32px;background:transparent}
+  .list-head{padding:0 0 20px;font-size:20px;color:var(--ink);font-weight:650}
+  .list-search{width:100%;padding:11px 13px;border:1px solid var(--rule);border-radius:7px;background:#fff;margin-bottom:20px}
+  .row{grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:18px 16px;border-left:5px solid #8a918e}
+  .row[data-status="active"]{border-left-color:var(--blue)}
+  .row[data-status="exploring"]{border-left-color:var(--violet)}
+  .row[data-status="blocked"]{border-left-color:var(--red)}
+  .row[data-status="done"]{border-left-color:var(--green)}
+  .row[data-status="parked"]{border-left-color:var(--ochre)}
+  .row[data-status="dropped"]{border-left-color:#a3a3a3}
+  .row strong{font-size:15px}.row small{margin-top:6px;font-size:12px}.row .row-status{font-size:12px;color:var(--muted);margin-left:15px}
+  body[data-page="home"] .detail{display:none}
+  body[data-page="workbench"] .home-nav,body[data-page="workbench"] .list-pane,body[data-page="workbench"]>.topbar{display:none}
+  body[data-page="workbench"] .split{display:block}
+  body[data-page="workbench"] .detail{padding:0}
+  .work-header{display:flex;align-items:center;gap:18px;padding:18px 28px;border-bottom:1px solid var(--rule);background:var(--surface)}
+  .work-header h1{font-size:19px;margin:0;flex:1;overflow-wrap:anywhere}.work-tabs{display:flex;gap:4px}
+  .work-tabs button{border:0;padding:8px 16px;border-radius:6px;background:transparent;color:var(--muted)}
+  .work-tabs button[aria-pressed="true"]{background:var(--soft);color:var(--green);font-weight:650}
+  .overview{width:100%;max-width:none;margin:0;padding:28px clamp(24px,3vw,64px) 48px}
+  .overview h2{font-size:17px;margin:0}.section-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:20px}
+  .overview-section{padding:28px 0;border-top:1px solid var(--rule)}
+  .canvas-preview{display:block;width:100%;padding:16px 20px;border:1px solid var(--rule);border-radius:10px;background:#faf8f4;text-align:left;transition:border-color .16s ease-out}
+  .canvas-preview:hover{border-color:#a3b8ae}.canvas-preview-head{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px}
+  .canvas-preview svg{display:block;width:100%;height:clamp(360px,46vh,620px);margin:12px 0 0;pointer-events:none}
+  @media(max-width:700px){.canvas-preview{padding:12px}.canvas-preview svg{height:280px}}
+  .overview-summary{font-size:15px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 16px}
+  .tag-list{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:22px}.tag{font-size:12px;color:#456c9e;background:#edf1f6;border-radius:4px;padding:3px 8px}
+  .project-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin:24px 0 28px}.project-facts dt{font-size:12px;color:var(--muted)}.project-facts dd{margin:6px 0 0;font-size:13px;overflow-wrap:anywhere}
+  .status-chip{font-size:12px;padding:5px 12px;border-radius:6px;background:var(--soft);color:var(--green)}
+  .blocker-note{display:flex;gap:12px;padding:16px;background:#f8eeea;border-radius:8px;line-height:1.8;margin-bottom:24px}.blocker-note strong{color:#ae4336;white-space:nowrap}.blocker-note p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+  .muted{color:var(--muted);font-size:13px}.record-list{list-style:none;margin:0;padding:0}.record-list li{margin:0}
+  .record-history{margin-top:12px}.record-history summary{width:max-content;padding:7px 0;cursor:pointer;font-size:13px;color:var(--muted)}.record-history .collapse-label{display:none}.record-history[open] .expand-label{display:none}.record-history[open] .collapse-label{display:inline}
+  .record-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:13px;width:100%;align-items:start;text-align:left;border:0;background:transparent;padding:11px 0;font-size:13px}.record-row:hover{background:#f1f0eb}.record-row span{white-space:pre-wrap;overflow-wrap:anywhere}.record-row time{font-size:12px;color:var(--muted)}.record-dot{height:8px;width:8px;border-radius:50%;margin-top:6px}
+  .task-row{display:flex;align-items:start;gap:12px;padding:16px 0;border-bottom:1px solid var(--rule)}.task-row input{margin:5px 0 0;width:17px;height:17px;accent-color:var(--green)}.task-body{flex:1;min-width:0}.task-title{border:0;background:transparent;text-align:left;padding:0;line-height:1.6;font-size:14px;overflow-wrap:anywhere}.task-row.done .task-title{text-decoration:line-through;color:var(--muted)}.task-body small{display:block;color:var(--muted);margin-top:5px}.task-due{font-size:12px;padding:3px 7px;white-space:nowrap;background:#edf1f6;border-radius:4px}.task-due.overdue{color:#b5413b;background:#fae8e4}
+  .overview-form{display:grid;gap:14px;padding:20px;margin-bottom:22px;background:#fff;border:1px solid var(--rule);border-radius:9px}.overview-form label{display:grid;gap:6px;font-size:13px;color:var(--muted)}.overview-form input,.overview-form textarea,.overview-form select{width:100%;font:inherit;color:var(--ink);padding:10px;border:1px solid var(--rule);border-radius:5px;background:white}.overview-form textarea{min-height:90px;resize:vertical;line-height:1.7}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:700px){.split{display:block}.home-nav{min-height:0;padding:12px;border-right:0}.home-nav p{display:none}.home-nav .tabs{display:flex;overflow:auto}.list-pane{padding:20px 16px}.work-header{flex-wrap:wrap;padding:14px;gap:10px}.work-header h1{font-size:16px}.work-tabs{width:100%}.overview{padding:24px 16px}.project-facts{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.record-row{grid-template-columns:8px minmax(0,1fr)}.record-row time{grid-column:2}.task-row{flex-wrap:wrap}.task-due{margin-left:29px}.blocker-note{display:block}}
+  .overview{font-size:18px;line-height:1.75}
+  .overview h2{font-size:22px}
+  .overview .overview-summary,.overview .record-row,.overview .task-title{font-size:18px}
+  .overview .section-head>strong{font-size:20px}
+  .overview .project-facts dd{font-size:17px}
+  .overview .project-facts dt,.overview .record-row time,.overview .muted,.overview .task-body small,.overview .canvas-preview-head,.overview .record-history summary{font-size:16px}
+  .overview .tag,.overview .status-chip,.overview .task-due{font-size:15px}
+  .overview .secondary,.overview .primary{font-size:16px;min-height:40px}
+  .overview .overview-form label{font-size:16px}
+  .overview .overview-form input,.overview .overview-form textarea,.overview .overview-form select{font-size:18px}
+  .overview .record-row{padding:14px 0;line-height:1.7}
+  .overview .record-dot{margin-top:11px}
+  .overview .section-head{flex-wrap:wrap}
+  .work-header h1{font-size:24px}
+  .work-header .secondary,.work-tabs button{font-size:16px}
+  @media(max-width:700px){.work-header h1{font-size:20px}.overview h2{font-size:21px}.overview .project-facts dd{overflow-wrap:anywhere}}
+  .home-capture{display:grid;gap:16px;margin-bottom:24px;padding:22px;background:#fff;border:1px solid var(--rule);border-radius:10px;font-size:17px}
+  .home-capture h2{margin:0;font-size:22px}.home-capture label{display:grid;gap:7px;font-size:16px}
+  .home-capture input,.home-capture textarea{width:100%;padding:11px 12px;font-size:17px;border:1px solid var(--rule);border-radius:6px;background:#fff}
+  .home-capture textarea{min-height:90px;resize:vertical}.home-capture button{font-size:16px;min-height:42px}
+  body[data-page="home"] .list-pane{max-height:none;overflow:visible}
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">Idea Ops</h1><button class="secondary" id="new-idea" type="button">新想法</button>
+    <button class="secondary" id="export-local" type="button">导出本地备份</button>
+  </header>
+  <p id="offline-notice" role="status" hidden style="padding:12px 24px;white-space:pre-wrap"></p>
+
+<main class="split">
+    <aside class="home-nav"><p>让好想法，走到下一步</p><nav class="tabs" id="tabs" aria-label="按状态筛选"></nav></aside>
+    <aside class="list-pane">
+      <div class="list-head" id="list-head">想法</div>
+      <input class="list-search" id="project-search" type="search" placeholder="搜索项目、简介或标签…" aria-label="搜索项目">
+      <form id="home-idea-form" class="home-capture" hidden>
+        <h2>新想法</h2>
+        <label>想法名称<input name="title" maxlength="160" placeholder="你想做什么？" autocomplete="off" required></label>
+        <label>简单描述（可选）<textarea name="summary" placeholder="记下背景、目的或初步思路…"></textarea></label>
+        <div class="actions"><button class="primary" type="submit">添加到收件箱</button><button class="secondary" id="cancel-home-idea" type="button">取消</button></div>
+      </form>
+      <ul class="list" id="list"></ul>
+    </aside>
+    <section class="detail" id="detail"></section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="offline-inbox.js"></script>
+<script src="offline-bridge.js"></script>
+<script>
+const STATUS = { all:"全部", inbox:"收件箱", exploring:"探索中", active:"执行中", blocked:"已阻塞", parked:"已搁置", done:"已完成", dropped:"已放弃" };
+const KIND = {
+  step:       { label:"步骤", color:"#4c7bc5" },
+  progress:   { label:"进展", color:"#399c7c" },
+  resistance: { label:"阻力", color:"#de952b" },
+  blocker:    { label:"阻塞", color:"#db585d" },
+  decision:   { label:"决策", color:"#4c7bc5" },
+  lesson:     { label:"经验", color:"#399c7c" }
+};
+const state = { ideas:[], filter:"all", selected:null, pick:{}, page:'home', view:'overview', search:'' };
+const STANDALONE = location.protocol === "file:";
+const KEY = "idea-ops-data-v2";
+
+const $ = selector => document.querySelector(selector);
+const esc = (value = "") => String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
+const fmt = value => new Intl.DateTimeFormat("zh-CN",{ month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }).format(new Date(value));
+const kindOf = key => KIND[key] || KIND.progress;
+const short = (text, size = 18) => text && text.length > size ? text.slice(0, size - 1) + "…" : (text || "");
+const isUserLog = log => {
+  const text = String(log.text || "");
+  return log.source === "user" || (log.kind !== "capture" && text !== "Idea updated" && !text.startsWith("Updated:") && !text.startsWith("Linked "));
+};
+const commitsOf = idea => (idea?.logs || []).filter(isUserLog).map(log => ({
+  id: log.id, at: log.at, kind: KIND[log.kind] ? log.kind : "progress", title:nodeTitle(log), text: log.text, parents: (log.after || []).slice(), position:log.position
+}));
+const nodeTitle = log => String(log.title || String(log.text || '').split(/\r?\n/)[0] || '未命名节点').trim();
+
+/* ---------- 数据层：免后台用 localStorage，同步模式走 /api ---------- */
+
+const nowISO = () => new Date().toISOString();
+function loadLocal() {
+  try {
+    const data = JSON.parse(localStorage.getItem(KEY) || '{"version":1,"ideas":[]}');
+    data.ideas.forEach(idea => {
+      idea.logs ||= [];
+      const used = new Set(idea.logs.map(log => log.id).filter(Boolean));
+      idea.logs.forEach((log, index) => {
+        if (!isUserLog(log)) return;
+        if (!log.id) {
+          const base = `LOG-legacy-${index + 1}`;
+          let id = base, suffix = 2;
+          while (used.has(id)) id = `${base}-${suffix++}`;
+          log.id = id; used.add(id);
+        }
+        log.after = Array.isArray(log.after) ? [...new Set(log.after)] : [];
+      });
+    });
+    return data;
+  } catch { throw new Error('本地记录无法读取，已停止写入以保护原数据。请先备份浏览器数据。'); }
+}
+const saveLocal = data => localStorage.setItem(KEY, JSON.stringify(data));
+const findIdea = (data, id) => {
+  const idea = data.ideas.find(item => item.id === id);
+  if (!idea) throw new Error("找不到这条想法");
+  return idea;
+};
+function nextId(data, prefix, usedOf) {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const used = usedOf(data);
+  let id = `${prefix}-${stamp}`, suffix = 2;
+  while (used.has(id)) id = `${prefix}-${stamp}-${suffix++}`;
+  return id;
+}
+function logReaches(idea, startId, goalId) {
+  const logs = (idea.logs || []).filter(isUserLog), children = new Map(logs.map(log => [log.id, []]));
+  logs.forEach(log => (log.after || []).forEach(parent => children.get(parent)?.push(log.id)));
+  const seen = new Set(), pending = [startId];
+  while (pending.length) {
+    const id = pending.pop();
+    if (id === goalId) return true;
+    if (seen.has(id)) continue;
+    seen.add(id); pending.push(...(children.get(id) || []));
+  }
+  return false;
+}
+function localMutate(path, options) {
+  const data = loadLocal();
+  const payload = JSON.parse(options.body || "{}");
+  const at = nowISO();
+  let result;
+  if (path === "/api/capture") {
+    if (!String(payload.title || "").trim()) throw new Error("标题不能为空");
+    result = { id: nextId(data, "IDEA", d => new Set(d.ideas.map(i => i.id))), title: payload.title.trim(), summary: String(payload.summary||'').trim(), status: "inbox", next_action: "", blocker: "", created_at: at, updated_at: at, relations: [], logs: [] };
+    data.ideas.push(result);
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-update")) {
+    result=findIdea(data,path.slice(11,-11));
+    const log=result.logs.find(item=>item.id===payload.log && isUserLog(item));
+    if(!log) throw new Error('节点不存在');
+    if(!KIND[payload.kind] || !String(payload.title || payload.text || '').trim()) throw new Error('请选择类型并填写标题');
+    if(Object.hasOwn(payload,'title')) log.title=String(payload.title).trim();
+    log.kind=payload.kind;log.text=payload.text.trim();log.updated_at=at;result.updated_at=at;
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-positions")) {
+    result = findIdea(data, path.slice(11, -14));
+    for(const [id,position] of Object.entries(payload.positions || {})) {
+      const log=result.logs.find(item=>item.id===id && isUserLog(item));
+      if(!log || !validPosition(position)) throw new Error('节点位置无效');
+      log.position={x:position.x,y:position.y};
+    }
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-link")) {
+    result = findIdea(data, path.slice(11, -9));
+    const logs = new Map((result.logs || []).filter(isUserLog).map(log => [log.id, log]));
+    const source = logs.get(payload.source), target = logs.get(payload.target);
+    if (!source || !target) throw new Error("提交不存在");
+    if (source.id === target.id) throw new Error("提交不能连接自身");
+    if (logReaches(result, target.id, source.id)) throw new Error("连线不能形成循环");
+    target.after ||= [];
+    if (!target.after.includes(source.id)) target.after.push(source.id);
+    result.updated_at = at;
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-unlink")) {
+    result = findIdea(data, path.slice(11, -11));
+    const logs = new Map((result.logs || []).filter(isUserLog).map(log => [log.id, log]));
+    const source = logs.get(payload.source), target = logs.get(payload.target);
+    if (!source || !target) throw new Error("提交不存在");
+    if (!(target.after || []).includes(source.id)) throw new Error("连线不存在");
+    target.after = target.after.filter(id => id !== source.id);
+    result.updated_at = at;
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-delete")) {
+    result = findIdea(data, path.slice(11, -11));
+    if (!(result.logs || []).filter(isUserLog).some(log => log.id === payload.log)) throw new Error("提交不存在");
+    result.logs = result.logs.filter(log => log.id !== payload.log);
+    result.logs.forEach(log => { if (isUserLog(log)) log.after = (log.after || []).filter(id => id !== payload.log); });
+    result.updated_at = at;
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log-insert")) {
+    result = findIdea(data, path.slice(11, -11));
+    const target = result.logs.find(log => isUserLog(log) && log.id === payload.target);
+    if (!target || !(target.after || []).includes(payload.source)) throw new Error("连线不存在");
+    if (!KIND[payload.kind] || !String(payload.title || payload.text || "").trim()) throw new Error("请选择类型并填写标题");
+    const id = nextId(result, "LOG", () => new Set(result.logs.map(log => log.id)));
+    result.logs.push({id,at,kind:payload.kind,text:payload.text.trim(),source:'user',after:[payload.source]});
+    if(Object.hasOwn(payload,'title')) result.logs.at(-1).title=String(payload.title).trim();
+    target.after = target.after.map(parent => parent === payload.source ? id : parent);
+    result.updated_at = at;
+  } else if (path.startsWith("/api/ideas/") && path.endsWith("/log")) {
+    result = findIdea(data, path.slice(11, -4));
+    if (!KIND[payload.kind] || !String(payload.title || payload.text || "").trim()) throw new Error("请选择类型并填写标题");
+    const after = Array.isArray(payload.after) ? [...new Set(payload.after)] : [];
+    const available = new Set((result.logs || []).filter(isUserLog).map(log => log.id));
+    if (after.some(id => !available.has(id))) throw new Error("父提交不存在");
+    result.logs.push({ id: nextId(result, "LOG", () => new Set((result.logs || []).map(l => l.id))), at, kind: payload.kind, text: payload.text.trim(), source: "user", after });
+    if(Object.hasOwn(payload,'title')) result.logs.at(-1).title=String(payload.title).trim();
+    result.updated_at = at;
+  } else if (path.startsWith("/api/ideas/")) {
+    result = findIdea(data, path.slice(11));
+    const changes=validateProjectChanges(payload);
+    const status = changes.status ?? result.status;
+    const blocker = String(changes.blocker ?? result.blocker ?? "").trim();
+    if (status === "blocked" && !blocker) throw new Error("状态设为已阻塞时，必须填写具体阻塞");
+    if(Object.hasOwn(changes,'blocker') && changes.blocker!==result.blocker) result.blocker_updated_at=at;
+    Object.assign(result, changes, { updated_at: at });
+    if (changes.status && changes.status !== "blocked" && !Object.hasOwn(changes,'blocker')) result.blocker = "";
+  } else throw new Error("未找到操作");
+  saveLocal(data);
+  return result;
+}
+const PRIORITY={low:'低',medium:'中',high:'高'};
+function validateProjectChanges(payload) {
+  const changes={};
+  for(const key of ['title','summary','next_action','blocker','project_name']) if(Object.hasOwn(payload,key)) {
+    changes[key]=String(payload[key]??'').trim();
+    if(key==='title' && !changes[key]) throw new Error('标题不能为空');
+  }
+  if(Object.hasOwn(payload,'status')) {if(!Object.hasOwn(STATUS,payload.status) || payload.status==='all') throw new Error('无效状态');changes.status=payload.status;}
+  if(Object.hasOwn(payload,'priority')) {if(payload.priority!=='' && !Object.hasOwn(PRIORITY,payload.priority)) throw new Error('无效优先级');changes.priority=payload.priority;}
+  if(Object.hasOwn(payload,'tags')) {
+    if(!Array.isArray(payload.tags) || payload.tags.some(tag=>typeof tag!=='string')) throw new Error('标签格式无效');
+    changes.tags=[...new Set(payload.tags.map(tag=>tag.trim().replace(/^#/, '')).filter(Boolean))];
+  }
+  if(Object.hasOwn(payload,'next_steps')) {
+    if(!Array.isArray(payload.next_steps)) throw new Error('下一步格式无效');
+    const used=new Set();
+    changes.next_steps=payload.next_steps.map(task=>{
+      if(!task || typeof task.id!=='string' || !task.id || used.has(task.id) || typeof task.text!=='string' || !task.text.trim() || typeof task.done!=='boolean') throw new Error('行动内容无效');
+      used.add(task.id);
+      const due=task.due||'',hours=task.hours??null;
+      if(typeof due!=='string' || due && (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !Number.isFinite(Date.parse(due)) || new Date(due).toISOString().slice(0,10)!==due)) throw new Error('截止日期无效');
+      if(hours!==null && (typeof hours!=='number' || !Number.isFinite(hours) || hours<0)) throw new Error('预计用时无效');
+      return {id:task.id,text:task.text.trim(),done:task.done,owner:String(task.owner||'').trim(),due,hours};
+    });
+  }
+  if(!Object.keys(changes).length) throw new Error('没有可保存的更改');
+  return changes;
+}
+async function api(path, options = {}) {
+  if (STANDALONE) return path === "/api/ideas" ? loadLocal() : localMutate(path, options);
+  const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "操作失败，请重试");
+  return data;
+}
+function toast(message, error = false) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.className = `toast show${error ? " error" : ""}`;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.className = "toast", 2600);
+}
+
+/* ---------- 多分支事件图：水平时间轴 + 分叉 + 收束 ---------- */
+
+function timelineLayout(items) {
+  const byId = new Map(items.map(item => [item.id, item]));
+  const children = new Map(items.map(item => [item.id, []]));
+  const indegree = new Map(items.map(item => [item.id, 0]));
+  items.forEach(item => (item.parents || []).forEach(parent => {
+    if (!byId.has(parent)) return;
+    children.get(parent).push(item.id);
+    indegree.set(item.id, indegree.get(item.id) + 1);
+  }));
+  const order = [], seen = new Set();
+  const ready = items.filter(item => indegree.get(item.id) === 0);
+  while (ready.length) {
+    ready.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const current = ready.shift();
+    if (seen.has(current.id)) continue;
+    seen.add(current.id);
+    order.push(current);
+    children.get(current.id).forEach(id => {
+      indegree.set(id, indegree.get(id) - 1);
+      if (indegree.get(id) === 0) ready.push(byId.get(id));
+    });
+  }
+  items.forEach(item => { if (!seen.has(item.id)) { seen.add(item.id); order.push(item); } });
+
+  const depth = new Map();
+  order.forEach(item => {
+    const parents = (item.parents || []).filter(parent => byId.has(parent));
+    const d = parents.length ? Math.max(...parents.map(parent => depth.get(parent))) + 1 : 0;
+    depth.set(item.id, d);
+  });
+
+  const y = new Map(), occupied = new Map();
+  order.forEach(item => {
+    const parents = (item.parents || []).filter(parent => byId.has(parent));
+    if (parents.length === 1) {
+      if (!y.has(item.id)) y.set(item.id, y.get(parents[0]));
+    } else if (parents.length > 1) {
+      y.set(item.id, parents.reduce((sum, parent) => sum + y.get(parent), 0) / parents.length);
+    }
+    if (!y.has(item.id)) y.set(item.id, 0);
+
+    // Keep nested branches at the same stage far enough apart for their labels.
+    const lanes = occupied.get(depth.get(item.id)) || [];
+    while (lanes.some(lane => Math.abs(lane - y.get(item.id)) < 140)) y.set(item.id, y.get(item.id) + 170);
+    lanes.push(y.get(item.id)); occupied.set(depth.get(item.id), lanes);
+
+    const childIds = children.get(item.id).filter(child => !y.has(child));
+    const n = childIds.length;
+    childIds.forEach((child, index) => {
+      y.set(child, y.get(item.id) + (index - (n - 1) / 2) * 170);
+    });
+  });
+
+  const pos = new Map(items.map(item => [item.id, { x: 100 + depth.get(item.id) * 200, y: y.get(item.id) }]));
+  const xs = [...pos.values()].map(point => point.x), ys = [...pos.values()].map(point => point.y);
+  const minX = Math.min(...xs) - 100, maxX = Math.max(...xs) + 120;
+  const minY = Math.min(...ys, 0) - 130, maxY = Math.max(...ys, 0) + 160;
+  return { order, depth, pos, width: maxX - minX, height: Math.max(440, maxY - minY), minX, minY };
+}
+
+function edgePath(a, b) {
+  const dx = b.x - a.x;
+  return `M ${a.x} ${a.y} C ${a.x + dx * 0.5} ${a.y}, ${b.x - dx * 0.5} ${b.y}, ${b.x} ${b.y}`;
+}
+
+function graphButton(action, label, path) {
+  return `<button type="button" data-action="${action}" aria-label="${label}" title="${label}"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+}
+function graphSvg(list, pick) {
+  if (!list.length) return "";
+  const view = {pos:new Map(list.map(item=>[item.id,item.position || {x:100,y:150}]))};
+  const edgeColor = "#49576a";
+  const edges = list.flatMap(item => (item.parents || []).map(parent => {
+    const a = view.pos.get(parent), b = view.pos.get(item.id);
+    return a && b ? `<g class="edge" tabindex="0" data-source="${esc(parent)}" data-target="${esc(item.id)}" aria-label="从 ${esc(nodeTitle(list.find(node=>node.id===parent)||{}))} 到 ${esc(nodeTitle(item))} 的连线">
+      <path class="edge-glow" d="${edgePath(a,b)}" fill="none" stroke="#6687b2" stroke-width="9" stroke-linecap="round"/>
+      <path d="${edgePath(a,b)}" fill="none" stroke="${edgeColor}" stroke-width="4" stroke-linecap="round"/>
+      <path class="edge-hit" d="${edgePath(a,b)}" fill="none" stroke="transparent" stroke-width="24"/>
+      <foreignObject class="edge-actions" x="${(a.x+b.x)/2-32}" y="${(a.y+b.y)/2-16}" width="64" height="34"><div xmlns="http://www.w3.org/1999/xhtml" class="graph-actions">${graphButton('insert','在线上添加节点','M10 4v12M4 10h12')}${graphButton('unlink','删除这条连线','M4 10h12')}</div></foreignObject>
+    </g>` : "";
+  })).join("");
+  const nodes = list.map(item => {
+    const point = view.pos.get(item.id), kind = kindOf(item.kind), on = item.id === pick || mergeIds.includes(item.id);
+    return `<g class="node${on?' is-selected':''}" data-commit="${esc(item.id)}" tabindex="0" aria-label="${esc(nodeTitle(item))}">
+      <rect x="${point.x-22}" y="${point.y-22}" width="78" height="${item.id==='root'?54:132}" fill="transparent"/>
+      <circle class="node-halo" cx="${point.x}" cy="${point.y}" r="12" fill="${kind.color}"/>
+      <circle class="node-dot" cx="${point.x}" cy="${point.y}" r="7" fill="${kind.color}">
+        <title>${esc(nodeTitle(item))}</title>
+      </circle>
+      <path d="M ${point.x} ${point.y + 27} v 17" stroke="#a2aebe" stroke-width="2" stroke-dasharray="5 6" stroke-linecap="round"/>
+      <text x="${point.x}" y="${point.y + 61}" text-anchor="middle" font-size="17" font-weight="650" fill="#20314a">${esc(short(nodeTitle(item), 16))}</text>
+      <foreignObject class="node-actions" x="${point.x+24}" y="${point.y-20}" width="34" height="132"><div xmlns="http://www.w3.org/1999/xhtml" class="graph-actions">${graphButton('add','添加后续','M10 4v12M4 10h12')}${item.id==='root'?'':graphButton('delete','删除节点','M4 6h12M8 3h4M6 6l1 11h6l1-11M9 9v5M11 9v5')+graphButton('merge','汇合','M4 3v3q0 4 6 4h6M4 17v-3q0-4 6-4M13 7l3 3-3 3')+graphButton('connect','连线到另一个节点','M3 10h14M12 5l5 5-5 5')}</div></foreignObject>
+    </g>`;
+  }).join("");
+  const camera = cameraOf();
+  return `<svg aria-label="无边事件画布"><g id="canvas-world" transform="translate(${camera.x} ${camera.y}) scale(${camera.zoom})">${edges}${nodes}</g></svg>`;
+}
+
+const validPosition = p => p && typeof p.x==='number' && typeof p.y==='number' && Number.isFinite(p.x) && Number.isFinite(p.y);
+function initializePositions(idea) {
+  const items=commitsOf(idea), positions=new Map(items.filter(i=>validPosition(i.position)).map(i=>[i.id,i.position]));
+  if(!items.length) return {};
+  const initial=positions.size===0?timelineLayout(items):null, changed={};
+  for(const item of items) {
+    if(positions.has(item.id)) continue;
+    const parents=item.parents.map(id=>positions.get(id)).filter(Boolean);
+    const children=items.filter(i=>i.parents.includes(item.id)).map(i=>positions.get(i.id)).filter(Boolean);
+    let point=initial?{x:initial.pos.get(item.id).x,y:initial.pos.get(item.id).y-initial.minY}:parents.length?{x:Math.max(...parents.map(p=>p.x))+200,y:parents.reduce((sum,p)=>sum+p.y,0)/parents.length}:{x:100,y:150};
+    if(!initial && parents.length===1 && children.length===1) point={x:(parents[0].x+children[0].x)/2,y:(parents[0].y+children[0].y)/2};
+    while([...positions.values()].some(p=>Math.abs(p.x-point.x)<100 && Math.abs(p.y-point.y)<110)) point.y+=150;
+    positions.set(item.id,point);changed[item.id]=point;
+  }
+  return changed;
+}
+const cameras = {};
+function cameraOf() {
+  const key=state.selected || 'empty';
+  if(!cameras[key]) {
+    try {const saved=JSON.parse(localStorage.getItem('idea-ops-camera-'+key));if(validPosition(saved) && Number.isFinite(saved.zoom) && saved.zoom>0 && saved.zoom<=3) cameras[key]=saved;}catch{}
+    cameras[key] ||= {x:40,y:40,zoom:1};
+  }
+  return cameras[key];
+}
+function applyCamera() {
+  const c=cameraOf();$('#canvas-world')?.setAttribute('transform',`translate(${c.x} ${c.y}) scale(${c.zoom})`);
+  if($('#zoom-label')) $('#zoom-label').textContent=Math.round(c.zoom*100)+'%';
+  try{localStorage.setItem('idea-ops-camera-'+state.selected,JSON.stringify(c));}catch{}
+  positionTools();
+}
+function zoomCanvas(factor,x,y) {
+  const c=cameraOf(),next=Math.max(Number.EPSILON,Math.min(3,c.zoom*factor)),ratio=next/c.zoom;
+  c.x=x-(x-c.x)*ratio;c.y=y-(y-c.y)*ratio;c.zoom=next;applyCamera();
+}
+function drawCanvas() {
+  const idea=state.ideas.find(i=>i.id===state.selected);
+  if(idea) $('#map-scroll').innerHTML=graphSvg(graphNodes(idea),state.pick[idea.id]);
+}
+
+/* ---------- 渲染 ---------- */
+
+function visibleIdeas() {
+  const query=state.search.trim().toLocaleLowerCase();
+  return state.ideas.filter(idea => (state.filter === "all" || idea.status === state.filter) && (!query || [idea.title,idea.summary,...(idea.tags||[])].join(' ').toLocaleLowerCase().includes(query)));
+}
+
+function renderTabs() {
+  const order = ["all", "inbox", "exploring", "active", "blocked", "parked", "done", "dropped"];
+  const counts = Object.fromEntries(order.map(key => [key, key === "all" ? state.ideas.length : state.ideas.filter(idea => idea.status === key).length]));
+  $("#tabs").innerHTML = order.map(key => `<button type="button" data-status="${key}" class="${state.filter === key ? "current" : ""}">${STATUS[key]}<b>${counts[key]}</b></button>`).join("");
+  $("#tabs").querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+    state.filter = button.dataset.status;
+    state.page='home';render();
+  }));
+}
+
+function renderList() {
+  const ideas = visibleIdeas();
+  $("#list-head").textContent = `${ideas.length} 个想法`;
+  if (!ideas.length) {
+    $("#list").innerHTML = `<li><p class="empty">点击「新想法」开始。</p></li>`;
+    return;
+  }
+  $("#list").innerHTML = ideas.map(idea => {
+    const list = commitsOf(idea);
+    const copy = idea.blocker ? `阻塞：${idea.blocker}` : (idea.summary || idea.next_action || `${list.length} 个事件`);
+    return `<li><button class="row ${idea.id === state.selected ? "selected" : ""}" data-id="${idea.id}" data-status="${esc(idea.status)}" type="button">
+      <span><strong>${esc(idea.title)}</strong><small>${esc(copy)} · ${fmt(idea.updated_at)}</small></span>
+      <span class="row-status">${STATUS[idea.status]} →</span>
+    </button></li>`;
+  }).join("");
+  $("#list").querySelectorAll(".row").forEach(button => button.addEventListener("click", () => {
+    state.selected = button.dataset.id;
+    state.page='workbench';state.view='overview';
+    renderList(); renderDetail();
+  }));
+}
+
+
+let mergeIds = [], merging = false, linking = null;
+let anchorId = null, selectedEdge = null, mutating = false;
+function graphNodes(idea) {
+  const list = commitsOf(idea);
+  // Empty parent lists are disconnected nodes, never implicit project links.
+  return list.length ? list : idea ? [{id:'root',kind:'step',text:idea.title,at:idea.created_at,parents:[]}] : [];
+}
+function graphBounds(nodes) {
+  const points=nodes.map(node=>node.position||{x:100,y:150});
+  if(!points.length) points.push({x:100,y:150});
+  const minX=Math.min(...points.map(p=>p.x))-110,maxX=Math.max(...points.map(p=>p.x))+110;
+  const minY=Math.min(...points.map(p=>p.y))-50,maxY=Math.max(...points.map(p=>p.y))+110;
+  return {minX,minY,width:maxX-minX,height:maxY-minY};
+}
+function canvasPreview(idea) {
+  const nodes=graphNodes(idea),bounds=graphBounds(nodes),positions=new Map(nodes.map(node=>[node.id,node.position||{x:100,y:150}]));
+  let count=0;
+  const edges=nodes.flatMap(node=>node.parents.map(parent=>{
+    const from=positions.get(parent);if(!from) return '';
+    count++;
+    return `<path d="${edgePath(from,positions.get(node.id))}" fill="none" stroke="#687588" stroke-width="3" stroke-linecap="round"/>`;
+  })).join('');
+  const dots=nodes.map(node=>{
+    const p=positions.get(node.id),color=kindOf(node.kind).color;
+    return `<g><circle cx="${p.x}" cy="${p.y}" r="12" fill="${color}" opacity=".16"/><circle cx="${p.x}" cy="${p.y}" r="7" fill="${color}"/><text x="${p.x}" y="${p.y+34}" text-anchor="middle" fill="#20314a" font-size="16">${esc(short(nodeTitle(node),16))}</text></g>`;
+  }).join('');
+  return `<button class="canvas-preview" type="button" data-work="canvas-preview" aria-label="打开画布全览"><span class="canvas-preview-head"><span>${commitsOf(idea).length} 个节点 · ${count} 条连线</span><span>点击进入画布 →</span></span><svg viewBox="${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${edges}${dots}</svg></button>`;
+}
+function fitCanvas() {
+  const bounds=graphBounds(graphNodes(state.ideas.find(i=>i.id===state.selected))),box=$('#map-scroll').getBoundingClientRect(),c=cameraOf();
+  c.zoom=Math.min(1,Math.max(1,box.width-32)/bounds.width,Math.max(1,box.height-32)/bounds.height);
+  c.x=(box.width-bounds.width*c.zoom)/2-bounds.minX*c.zoom;c.y=(box.height-bounds.height*c.zoom)/2-bounds.minY*c.zoom;
+  applyCamera();
+}
+function tasksOf(idea) {
+  return Array.isArray(idea.next_steps)?idea.next_steps:idea.next_action?[{id:'legacy-next-action',text:idea.next_action,done:false,owner:'',due:'',hours:null}]:[];
+}
+const fullDate=value=>new Date(value).toLocaleString('zh-CN',{hour12:false});
+function overviewHtml(idea) {
+  if(!idea) return '';
+  const tasks=tasksOf(idea),records=commitsOf(idea).slice().sort((a,b)=>b.at.localeCompare(a.at));
+  const recordRows=items=>items.map(record=>`<li><button class="record-row" data-work="view-record" data-record="${esc(record.id)}" title="在画布中查看或修改"><i class="record-dot" style="background:${kindOf(record.kind).color}"></i><span>${esc(nodeTitle(record))}</span><time>${esc(fmt(record.at))}</time></button></li>`).join('');
+  const today=new Date(),todayKey=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+  return `<section class="overview" ${state.view==='overview'?'':'hidden'}>
+    <div class="section-head"><span class="status-chip">${STATUS[idea.status]}</span><button class="secondary" data-work="edit-project">编辑项目信息</button></div>
+    <p class="overview-summary">${esc(idea.summary||'还没有项目简介，点击编辑项目信息补充。')}</p>
+    <div class="tag-list">${(idea.tags||[]).map(tag=>`<span class="tag">#${esc(tag)}</span>`).join('')}<button class="secondary" data-work="edit-project" aria-label="编辑标签">＋ 标签</button></div>
+    <dl class="project-facts"><div><dt>创建时间</dt><dd>${esc(fullDate(idea.created_at))}</dd></div><div><dt>更新时间</dt><dd>${esc(fullDate(idea.updated_at))}</dd></div><div><dt>所属项目</dt><dd>${esc(idea.project_name||'未设置')}</dd></div><div><dt>优先级</dt><dd>${PRIORITY[idea.priority]||'未设置'}</dd></div></dl>
+    <div id="overview-editor"></div>
+    <section class="overview-section"><div class="section-head"><h2>阻力与记录</h2></div>
+    ${idea.blocker?`<div class="blocker-note"><strong>当前阻塞</strong><div><p>${esc(idea.blocker)}</p>${idea.blocker_updated_at?`<span class="muted">更新于 ${esc(fullDate(idea.blocker_updated_at))}</span>`:''}</div></div>`:'<p class="muted">暂无当前阻塞。</p>'}
+    <div class="section-head"><strong>最近记录</strong></div>
+    <ul class="record-list">${recordRows(records.slice(0,3))||'<li class="muted">还没有记录，请在画布中添加。</li>'}</ul>
+    ${records.length>3?`<details class="record-history"><summary><span class="expand-label">展开更早的 ${records.length-3} 条记录</span><span class="collapse-label">收起更早记录</span></summary><ul class="record-list">${recordRows(records.slice(3))}</ul></details>`:''}</section>
+    <section class="overview-section"><div class="section-head"><h2>下一步 <span class="muted">${tasks.filter(task=>task.done).length} / ${tasks.length}</span></h2><button class="secondary" data-work="add-task">＋ 添加行动</button></div>
+    ${tasks.map(task=>`<div class="task-row${task.done?' done':''}"><input type="checkbox" data-task-toggle="${esc(task.id)}" aria-label="${esc(task.text)}：标记完成" ${task.done?'checked':''}><div class="task-body"><button class="task-title" data-work="edit-task" data-task="${esc(task.id)}">${esc(task.text)}</button><small>负责人：${esc(task.owner||'未指定')} · 预计用时：${task.hours===null||task.hours===undefined?'未估算':esc(task.hours)+' 小时'}</small></div>${task.due?`<span class="task-due${!task.done&&task.due<todayKey?' overdue':''}">${esc(task.due)}${!task.done&&task.due<todayKey?' · 已逾期':''}</span>`:''}</div>`).join('')||'<p class="muted">明确一个可以开始执行的行动。</p>'}</section>
+    <section class="overview-section"><div class="section-head"><h2>画布全览</h2></div>${canvasPreview(idea)}</section>
+  </section>`;
+}
+function openWorkEditor(mode,id='') {
+  const idea=state.ideas.find(item=>item.id===state.selected);
+  if(!idea) return;
+  const field=(label,name,value='',type='text')=>`<label>${label}<input name="${name}" type="${type}" value="${esc(value??'')}" ${name==='hours'?'min="0" step="0.25"':''}></label>`;
+  const text=(label,name,value='')=>`<label>${label}<textarea name="${name}" ${name==='text'?'required':''}>${esc(value)}</textarea></label>`;
+  const select=(label,name,values,value)=>`<label>${label}<select name="${name}">${Object.entries(values).map(([key,title])=>`<option value="${key}" ${key===value?'selected':''}>${esc(title)}</option>`).join('')}</select></label>`;
+  const titles={'edit-project':'编辑项目信息','edit-blocker':'当前阻塞','add-record':'添加记录','edit-record':'编辑记录','add-task':'添加行动','edit-task':'编辑行动'};
+  let fields='';
+  if(mode==='edit-project') fields=field('名称','title',idea.title)+text('项目简介','summary',idea.summary||'')+`<div class="form-grid">${select('状态','status',Object.fromEntries(Object.entries(STATUS).filter(([key])=>key!=='all')),idea.status)}${select('优先级','priority',{'':'未设置',...PRIORITY},idea.priority||'')}${field('所属项目','project_name',idea.project_name||'')}${field('标签（用逗号或空格分隔）','tags',(idea.tags||[]).join('，'))}</div>`+text('具体阻塞（状态为已阻塞时必填）','blocker',idea.blocker||'');
+  if(mode==='edit-blocker') fields=text('具体阻塞','blocker',idea.blocker||'')+select('项目状态','status',Object.fromEntries(Object.entries(STATUS).filter(([key])=>key!=='all')),idea.status);
+  if(mode==='add-record'||mode==='edit-record') {
+    const log=mode==='edit-record'?idea.logs.find(log=>log.id===id):null;
+    fields=select('事件类型','kind',Object.fromEntries(Object.entries(KIND).map(([key,value])=>[key,value.label])),log?.kind||'progress')+`<label>标题<input name="title" maxlength="160" value="${esc(log?nodeTitle(log):'')}" required></label><label>详细内容（可选）<textarea name="text">${esc(log?.text||'')}</textarea></label>`;
+  }
+  if(mode==='add-task'||mode==='edit-task') {
+    const task=tasksOf(idea).find(task=>task.id===id);
+    fields=text('行动内容','text',task?.text||'')+`<div class="form-grid">${field('负责人','owner',task?.owner||'')}${field('预计用时（小时）','hours',task?.hours??'','number')}${field('截止日期','due',task?.due||'','date')}</div>`;
+  }
+  $('#overview-editor').innerHTML=`<form class="overview-form" id="overview-form" data-mode="${mode}" data-idea="${esc(idea.id)}" data-record="${esc(id)}"><strong>${titles[mode]}</strong>${fields}<div class="actions"><button class="primary" type="submit">保存</button><button class="secondary" type="button" data-work="cancel-edit">取消</button></div></form>`;
+  $('#overview-editor').querySelector('input,textarea,select')?.focus();
+}
+async function saveWorkEditor(form) {
+  if(mutating) return;
+  const values=Object.fromEntries(new FormData(form)),mode=form.dataset.mode,idea=state.ideas.find(i=>i.id===form.dataset.idea);
+  if(!idea) return;
+  const button=form.querySelector('[type="submit"]');button.disabled=true;mutating=true;
+  try {
+    if(mode==='edit-project'||mode==='edit-blocker') {
+      if(mode==='edit-project') {
+        values.tags=values.tags.split(/[,，\s]+/).filter(Boolean);
+      }
+      await api(`/api/ideas/${idea.id}`,{method:'PATCH',body:JSON.stringify(values)});
+    } else if(mode==='add-record'||mode==='edit-record') {
+      await api(`/api/ideas/${idea.id}/${mode==='add-record'?'log':'log-update'}`,{method:'POST',body:JSON.stringify({...values,after:[],log:form.dataset.record})});
+    } else {
+      const tasks=tasksOf(idea).map(task=>({...task}));
+      const existing=tasks.find(task=>task.id===form.dataset.record);
+      const task={id:existing?.id||nextId(idea,'TASK',()=>new Set(tasks.map(task=>task.id))),text:values.text,owner:values.owner,due:values.due,hours:values.hours===''?null:Number(values.hours),done:existing?.done||false};
+      if(existing) Object.assign(existing,task);else tasks.push(task);
+      await api(`/api/ideas/${idea.id}`,{method:'PATCH',body:JSON.stringify({next_steps:tasks,next_action:tasks.find(task=>!task.done)?.text||''})});
+    }
+    await refresh(idea.id);render();toast('已保存');
+  }catch(error){toast(error.message,true);button.disabled=false;}
+  finally{mutating=false;}
+}
+$('#detail').addEventListener('change',async event=>{
+  const id=event.target.dataset.taskToggle;if(!id||mutating) return;
+  const checkbox=event.target,idea=state.ideas.find(i=>i.id===state.selected),tasks=tasksOf(idea).map(task=>({...task}));
+  const task=tasks.find(task=>task.id===id);if(!task) return;
+  const previous=task.done;task.done=checkbox.checked;checkbox.disabled=true;mutating=true;
+  try {await api(`/api/ideas/${idea.id}`,{method:'PATCH',body:JSON.stringify({next_steps:tasks,next_action:tasks.find(task=>!task.done)?.text||''})});await refresh(idea.id);render();toast(task.done?'行动已完成':'行动已恢复');}
+  catch(error){checkbox.checked=previous;checkbox.disabled=false;toast(error.message,true);}
+  finally{mutating=false;}
+});
+function renderDetail() {
+  merging = false; mergeIds = []; anchorId = null; selectedEdge = null; linking = null;
+  const idea = state.ideas.find(item => item.id === state.selected);
+  const list = commitsOf(idea);
+  const nodes = graphNodes(idea);
+  document.body?.setAttribute('data-page',state.page);
+  $('#detail').innerHTML = `<header class="work-header"><button class="secondary" data-work="back">← 返回项目</button><h1>${esc(idea?.title||'新想法')}</h1><nav class="work-tabs" aria-label="项目工作台视图"><button data-work="overview" aria-pressed="${state.view==='overview'}">概览</button><button data-work="canvas" aria-pressed="${state.view==='canvas'}">画布</button></nav></header>${overviewHtml(idea)}<div class="graph" id="graph" ${idea&&state.view!=='canvas'?'hidden':''}>
+    <div class="map-head"><div><h2>${esc(idea?.title || '多分支事件图')}</h2><p>${idea ? `${STATUS[idea.status]} · ${list.length} 个事件` : '从一个想法开始，让路径自然展开'}</p></div>${idea ? '<div class="canvas-nav"><button class="secondary" data-action="zoom-out" aria-label="缩小">−</button><span id="zoom-label">'+Math.round(cameraOf().zoom*100)+'%</span><button class="secondary" data-action="zoom-in" aria-label="放大">＋</button><button class="secondary" data-action="fit">全览</button><button class="secondary" data-action="metadata">项目信息</button></div>' : ''}</div>
+    <div class="map-scroll" id="map-scroll">${idea ? graphSvg(nodes, null) : '<div class="start"><button data-action="capture"><svg viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="21" fill="#4c7bc5"/><path d="M23 14v18M14 23h18" stroke="white" stroke-width="2"/></svg>添加第一个想法</button></div>'}</div>
+    <div class="map-foot"><div class="legend"><span><i style="background:#4c7bc5"></i>步骤 / 决策</span><span><i style="background:#399c7c"></i>进展 / 经验</span><span><i style="background:#de952b"></i>阻力 / 调整</span><span><i style="background:#db585d"></i>阻塞 / 问题</span></div><span id="map-help">悬停圆点或连线显示操作 · 触屏轻点</span></div>
+    <div class="node-tools" id="node-tools" hidden></div></div>`;
+}
+function render() { renderTabs(); renderList(); renderDetail(); }
+async function refresh(preferred = state.selected) {
+  const data = await api('/api/ideas');
+  for(const idea of data.ideas) {
+    const positions=initializePositions(idea);
+    if(Object.keys(positions).length) {
+      await api(`/api/ideas/${idea.id}/log-positions`,{method:'POST',body:JSON.stringify({positions})});
+      idea.logs.forEach(log=>{if(positions[log.id]) log.position=positions[log.id];});
+    }
+  }
+  state.ideas = data.ideas.sort((a,b) => b.updated_at.localeCompare(a.updated_at));
+  state.selected = state.ideas.some(idea => idea.id === preferred) ? preferred : (state.ideas[0]?.id || null);
+}
+function positionTools() {
+  const panel = $('#node-tools'), graph = $('#graph');
+  if (!panel || panel.hidden) return;
+  const node = [...graph.querySelectorAll('.node')].find(n => n.dataset.commit === anchorId);
+  const edge = selectedEdge && [...graph.querySelectorAll('.edge')].find(e => e.dataset.source === selectedEdge.source && e.dataset.target === selectedEdge.target);
+  const area = graph.getBoundingClientRect(), point = edge ? edge.querySelector('foreignObject').getBoundingClientRect() : node?.querySelector('.node-dot').getBoundingClientRect();
+  const left = point ? point.left - area.left - 110 : 24;
+  const top = point ? point.bottom - area.top + 100 : 100;
+  panel.style.left = `${Math.max(8, Math.min(left, area.width - panel.offsetWidth - 8))}px`;
+  panel.style.top = `${Math.max(76, Math.min(top, area.height - panel.offsetHeight - 12))}px`;
+}
+function showTools(html) {
+  const panel = $('#node-tools'); panel.innerHTML = html; panel.hidden = false;
+  positionTools();
+  (panel.querySelector('textarea,input') || panel.querySelector('button'))?.focus();
+}
+function closeTools() {
+  $('#node-tools').hidden = true; merging = false; mergeIds = []; linking = null;
+  $('#map-help').textContent = '悬停圆点或连线显示操作 · 触屏轻点';
+  $('#graph').querySelectorAll('.is-merge-selected').forEach(el => el.classList.remove('is-merge-selected'));
+  [...$('#graph').querySelectorAll('.node')].find(n => n.dataset.commit === anchorId)?.focus();
+}
+async function selectNode(id) {
+  if(mutating) return;
+  if(linking) {
+    if(id===linking || id==='root') return toast('请选择另一个事件节点',true);
+    const source=linking;
+    mutating=true;
+    try {
+      await api(`/api/ideas/${state.selected}/log-link`,{method:'POST',body:JSON.stringify({source,target:id})});
+      await refresh();render();toast('已建立连线');
+    } catch(error) {toast(error.message,true);}
+    finally {mutating=false;}
+    return;
+  }
+  if (merging) {
+    if(id === 'root') return toast('请选择需要汇合的事件');
+    mergeIds = mergeIds.includes(id) ? mergeIds.filter(x => x !== id) : [...mergeIds,id];
+    $('#graph').querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-merge-selected',mergeIds.includes(node.dataset.commit));
+    });
+    showTools(`<p>已选 ${mergeIds.length} 个事件，继续点击图中圆点</p><div class="actions"><button class="primary" data-action="merge-next" ${mergeIds.length < 2 ? 'disabled' : ''}>添加汇合事件</button><button class="secondary" data-action="close">取消</button></div>`);
+    return;
+  }
+  anchorId = id;
+  const idea = state.ideas.find(i => i.id === state.selected);
+  state.pick[idea.id] = id === 'root' ? null : id;
+  [...$('#graph').querySelectorAll('.node')].find(n=>n.dataset.commit===id)?.focus();
+  selectedEdge=null;
+  if(id==='root') return openMetadata();
+  openNodeCard(idea,id);
+}
+function openNodeCard(idea,id) {
+  const log=idea.logs.find(item=>item.id===id && isUserLog(item));
+  if(!log) return;
+  anchorId=id;selectedEdge=null;
+  const date=value=>new Date(value).toLocaleString('zh-CN',{hour12:false});
+  showTools(`<form id="node-edit-form" data-idea="${esc(idea.id)}" data-log="${esc(id)}"><strong>节点详情</strong><div class="record-time">记录于 ${esc(date(log.at))}${log.updated_at?`<br>修改于 ${esc(date(log.updated_at))}`:''}</div><label>事件类型<select name="kind">${Object.entries(KIND).map(([key,value])=>`<option value="${key}" ${key===log.kind?'selected':''}>${value.label}</option>`).join('')}</select></label><label>标题<input name="title" maxlength="160" value="${esc(nodeTitle(log))}" required></label><label>详细内容<textarea class="record-content" name="text" maxlength="${Math.max(500,(log.text||'').length)}">${esc(log.text)}</textarea></label><div class="actions"><button class="primary" type="submit">保存修改</button><button class="secondary" type="button" data-action="close">关闭</button></div></form>`);
+}
+function openEditor(mode) {
+  const title = {capture:'新想法',add:'添加后续事件',insert:'在线上添加节点',join:'添加汇合事件'}[mode];
+  showTools(`<form id="canvas-form" data-mode="${mode}"><strong>${title}</strong>${mode === 'capture' ? '' : `<label>事件类型<select name="kind">${Object.entries(KIND).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></label>`}${mode === 'capture' ? '<label>想法名称<input name="text" maxlength="160" required></label>' : '<label>标题<input name="title" maxlength="160" required></label><label>详细内容（可选）<textarea name="text" maxlength="500"></textarea></label>'}<div class="actions"><button class="primary" type="submit">添加</button><button class="secondary" type="button" data-action="close">取消</button></div></form>`);
+}
+function openMetadata() {
+  anchorId = 'root';
+  const idea = state.ideas.find(i => i.id === state.selected);
+  showTools(`<form id="metadata-form"><strong>项目信息</strong><label>名称<input name="title" maxlength="160" value="${esc(idea.title)}" required></label><label>状态<select name="status">${Object.entries(STATUS).filter(([k])=> k!=='all').map(([k,v])=>`<option value="${k}" ${k===idea.status?'selected':''}>${v}</option>`).join('')}</select></label><label>下一步<input name="next_action" value="${esc(idea.next_action)}"></label><label>具体阻塞<input name="blocker" value="${esc(idea.blocker)}"></label><div class="actions"><button class="primary">保存</button><button class="secondary" type="button" data-action="close">取消</button></div></form>`);
+}
+$('#detail').addEventListener('click', async event => {
+  if(Date.now()<suppressClickUntil) {event.preventDefault();return;}
+  if(mutating) return;
+  const work=event.target.closest('[data-work]');
+  if(work) {
+    const action=work.dataset.work;
+    if(action==='back') {state.page='home';return render();}
+    if(action==='overview'||action==='canvas') {state.view=action;return renderDetail();}
+    if(action==='canvas-preview') {state.view='canvas';renderDetail();fitCanvas();$('#detail').scrollIntoView?.({block:'start'});return;}
+    if(action==='view-record') {
+      const id=work.dataset.record;state.view='canvas';renderDetail();
+      const point=commitsOf(state.ideas.find(i=>i.id===state.selected)).find(item=>item.id===id)?.position;
+      if(point) {const box=$('#map-scroll').getBoundingClientRect(),camera=cameraOf();camera.x=box.width/2-point.x*camera.zoom;camera.y=box.height/3-point.y*camera.zoom;applyCamera();}
+      return selectNode(id);
+    }
+    if(action==='cancel-edit') {$('#overview-editor').innerHTML='';return;}
+    return openWorkEditor(action,work.dataset.record||work.dataset.task||'');
+  }
+  if(event.target.closest('.overview')) return;
+  const node = event.target.closest('.node');
+  const edge = event.target.closest('.edge');
+  const button = event.target.closest('[data-action]');
+  if(!button && node) return selectNode(node.dataset.commit);
+  if(!button && edge) {edge.focus();return;}
+  if (!button) { if(!event.target.closest('.node-tools') && !merging) closeTools(); return; }
+  if(node) {anchorId=node.dataset.commit;selectedEdge=null;}
+  if(edge) {selectedEdge={source:edge.dataset.source,target:edge.dataset.target};anchorId=null;}
+  const action = button.dataset.action;
+  if(action==='connect') {
+    closeTools();linking=anchorId;state.pick[state.selected]=anchorId;drawCanvas();
+    $('#map-help').textContent='点击目标节点建立连线 · Esc 或点击空白处取消';
+    return;
+  }
+  if(action==='zoom-in'||action==='zoom-out') {const area=$('#map-scroll').getBoundingClientRect();return zoomCanvas(action==='zoom-in'?1.2:1/1.2,area.width/2,area.height/2);}
+  if(action==='fit') return fitCanvas();
+  if(action === 'close') return closeTools();
+  if(action === 'capture') return openHomeCapture();
+  if(action === 'metadata') return openMetadata();
+  if(action === 'add' || action === 'insert') {linking=null;merging=false;mergeIds=[];return openEditor(action);}
+  if(action === 'merge') {linking=null;merging=true;mergeIds=[];$('#map-help').textContent='点击需要汇合的事件，再添加汇合节点';return selectNode(anchorId);}
+  if(action === 'merge-next') {merging=false;return openEditor('join');}
+  if(action === 'delete' || action === 'unlink') {
+    button.disabled = true;mutating=true;
+    const payload = action==='delete'?{log:anchorId}:selectedEdge;
+    try {await api(`/api/ideas/${state.selected}/${action==='delete'?'log-delete':'log-unlink'}`,{method:'POST',body:JSON.stringify(payload)});await refresh();render();toast(action==='delete'?'已删除节点及相连的线':'已删除这条连线');}
+    catch(error){toast(error.message,true);button.disabled=false;}
+    finally{mutating=false;}
+  }
+});
+$('#detail').addEventListener('keydown',event => {
+  if(event.key === 'Escape') return closeTools();
+  if(event.target.closest('[data-action]')) return;
+  const node=event.target.closest('.node');
+  if(node && ['Enter',' '].includes(event.key)){event.preventDefault();selectNode(node.dataset.commit);}
+});
+$('#detail').addEventListener('submit',async event => {
+  event.preventDefault(); const form = event.target;
+  if(form.id==='overview-form') return saveWorkEditor(form);
+  if(!['canvas-form','metadata-form','node-edit-form'].includes(form.id) || mutating) return;
+  const payload = Object.fromEntries(new FormData(form));
+  const submit = form.querySelector('[type="submit"],.primary');submit.disabled=true;
+  const mode = form.dataset.mode;
+  mutating=true;
+  try {
+    let preferred = state.selected;
+    if(form.id==='node-edit-form') {
+      preferred=form.dataset.idea;
+      await api(`/api/ideas/${preferred}/log-update`,{method:'POST',body:JSON.stringify({...payload,log:form.dataset.log})});
+    } else if(form.id === 'metadata-form') {
+      if(!payload.title.trim()) throw new Error('名称不能为空');
+      await api(`/api/ideas/${state.selected}`,{method:'PATCH',body:JSON.stringify(payload)});
+    } else if(mode === 'capture') {
+      const idea = await api('/api/capture',{method:'POST',body:JSON.stringify({title:payload.text})});preferred=idea.id;state.filter='all';
+      state.page='workbench';state.view='overview';
+    } else if(mode === 'insert') {
+      await api(`/api/ideas/${state.selected}/log-insert`,{method:'POST',body:JSON.stringify({...payload,...selectedEdge})});
+    } else {
+      const after = mode === 'join' ? mergeIds : (anchorId && anchorId !== 'root' ? [anchorId] : []);
+      await api(`/api/ideas/${state.selected}/log`,{method:'POST',body:JSON.stringify({...payload,after})});
+    }
+    await refresh(preferred);render();
+    if(form.id==='node-edit-form') openNodeCard(state.ideas.find(i=>i.id===preferred),form.dataset.log);
+    toast('已保存');
+  }catch(error){toast(error.message,true);submit.disabled=false;}
+  finally{mutating=false;}
+});
+function openHomeCapture() {
+  if(mutating) return;
+  state.page='home';render();
+  const form=$('#home-idea-form');form.hidden=false;
+  form.scrollIntoView?.({block:'nearest'});form.querySelector('[name="title"]')?.focus();
+}
+async function saveHomeIdea(form) {
+  if(mutating) return;
+  const payload=Object.fromEntries(new FormData(form));
+  if(!String(payload.title||'').trim()) return toast('请填写想法名称',true);
+  const button=form.querySelector('[type="submit"]');button.disabled=true;mutating=true;
+  try {
+    const idea=await api('/api/capture',{method:'POST',body:JSON.stringify(payload)});
+    state.page='home';state.filter='all';state.search='';$('#project-search').value='';
+    await refresh(idea.id);render();form.reset();form.hidden=true;$('#new-idea').focus();toast('已添加到收件箱，点击项目即可打开');
+  }catch(error){toast(error.message,true);}
+  finally{button.disabled=false;mutating=false;}
+}
+$('#new-idea').addEventListener('click',openHomeCapture);
+$('#home-idea-form').addEventListener('submit',event=>{event.preventDefault();saveHomeIdea(event.target);});
+$('#cancel-home-idea').addEventListener('click',()=>{if(!mutating){$('#home-idea-form').hidden=true;$('#new-idea').focus();}});
+$('#home-idea-form').addEventListener('keydown',event=>{if(event.key==='Escape'&&!mutating){event.preventDefault();$('#home-idea-form').hidden=true;$('#new-idea').focus();}});
+$('#project-search').addEventListener('input',event=>{state.search=event.target.value;renderList();});
+let gesture=null,suppressClickUntil=0;
+$('#detail').addEventListener('pointerdown',event=>{
+  const surface=event.target.closest('#map-scroll');
+  if(!surface || event.target.closest('button,input,select,textarea') || event.button!==0 || mutating || gesture) return;
+  const node=event.target.closest('.node'),idea=state.ideas.find(i=>i.id===state.selected);
+  const log=node && idea?.logs.find(l=>l.id===node.dataset.commit);
+  if(node && !log) return;
+  gesture={surface,pointer:event.pointerId,x:event.clientX,y:event.clientY,log,ideaId:state.selected,start:log?{...log.position}:{...cameraOf()},moved:false};
+});
+$('#detail').addEventListener('pointermove',event=>{
+  if(!gesture || gesture.pointer!==event.pointerId) return;
+  const g=gesture,dx=event.clientX-g.x,dy=event.clientY-g.y;
+  if(!g.moved && Math.hypot(dx,dy)<4) return;
+  if(!g.moved) g.surface.setPointerCapture(event.pointerId);
+  g.moved=true;g.surface.classList.add('dragging');
+  if(g.log) {g.log.position={x:g.start.x+dx/cameraOf().zoom,y:g.start.y+dy/cameraOf().zoom};drawCanvas();positionTools();}
+  else {Object.assign(cameraOf(),{x:g.start.x+dx,y:g.start.y+dy});applyCamera();}
+});
+async function finishGesture(event) {
+  if(!gesture || gesture.pointer!==event.pointerId) return;
+  const g=gesture;gesture=null;g.surface.classList.remove('dragging');
+  if(g.surface.hasPointerCapture(event.pointerId)) g.surface.releasePointerCapture(event.pointerId);
+  if(!g.moved) return;
+  suppressClickUntil=Date.now()+350;
+  if(event.type==='pointercancel') {
+    if(g.log) {g.log.position=g.start;drawCanvas();}else{Object.assign(cameraOf(),g.start);applyCamera();}return;
+  }
+  if(g.log) {
+    mutating=true;
+    try{await api(`/api/ideas/${g.ideaId}/log-positions`,{method:'POST',body:JSON.stringify({positions:{[g.log.id]:g.log.position}})});}
+    catch(error){g.log.position=g.start;drawCanvas();toast('位置未保存：'+error.message,true);}
+    finally{mutating=false;}
+  }
+}
+$('#detail').addEventListener('pointerup',finishGesture);
+$('#detail').addEventListener('pointercancel',finishGesture);
+$('#detail').addEventListener('wheel',event=>{
+  const surface=event.target.closest('#map-scroll');if(!surface || gesture) return;
+  event.preventDefault();const rect=surface.getBoundingClientRect();
+  zoomCanvas(Math.exp(-event.deltaY*(event.deltaMode===1?.04:.0015)),event.clientX-rect.left,event.clientY-rect.top);
+},{passive:false});
+addEventListener('resize',positionTools);
+$('#detail').addEventListener('scroll',positionTools,true);
+addEventListener('keydown',event=>{
+  if((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==='k'){event.preventDefault();$('#new-idea').click();}
+});
+$('#export-local').addEventListener('click', async () => {
+  try {
+    const data = await api('/api/ideas');
+    const blob = new Blob([JSON.stringify({version:1,ideas:data.ideas},null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob), link = document.createElement('a');
+    link.href=url;link.download='idea-ops-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  } catch(error) {toast(error.message,true);}
+});
+async function startApp() {
+  if (STANDALONE && window.IDEA_OPS_INBOX) {
+    const merged = mergeOfflineIdeas(loadLocal(), window.IDEA_OPS_INBOX);
+    saveLocal(merged.data); // One atomic storage write includes data and baselines.
+    const notice = $('#offline-notice');
+    notice.hidden=false;
+    notice.textContent = merged.conflicts.length
+      ? `已保留你在网页中的修改。${merged.conflicts.length} 个想法有不同版本，未自动覆盖：${merged.conflicts.join('、')}。请在首页导出本地备份交给 Codex 合并。`
+      : `免后台模式 · 已接收本地记录（新增 ${merged.added}，更新 ${merged.updated}）。网页修改保存在此浏览器；需要交给 Codex 时，在首页导出本地备份。`;
+  }
+  await refresh(); render();
+}
+startApp().catch(error => {$('#detail').innerHTML=`<p class="empty">${esc(error.message)}</p>`;const notice=$('#offline-notice');notice.hidden=false;notice.textContent=error.message;toast(error.message,true);});
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.tmp
+
+# Personal workspace data and generated artifacts
+.ideas/
+ai-keyboard-plan/
+.workbuddy/memory/
+Idea Ops.url
+multi-branch-event-diagram.png
+multi-branch-event-diagram.svg
